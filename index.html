@@ -14,8 +14,8 @@
         height: 42cm;
         margin: 1cm;
       }
-      .no-print,
-      .no-print * {
+      .hide-on-print,
+      .hide-on-print * {
         display: none !important;
       }
       .print-header {
@@ -341,7 +341,7 @@
     <span id="dayLabel" style="font-size: 18px;">Saturday</span>
     <input type="date" id="customDate" style="font-size: 18px; padding: 6px;" />
 
-    <button onclick="document.getElementById('fileInputScrub').click()" class="no-print" style="background-color:#005EB8; color:white; padding:8px 12px; border:none; border-radius:4px;">Upload Scrub Daily Staffing Roster (xls) </button>
+    <button onclick="document.getElementById('fileInputScrub').click()" class="no-print" style="background-color:#005EB8; color:white; padding:8px 12px; border:none; border-radius:4px;">Upload Scrub Daily Staff Roster</button>
     <span id="scrubUploadName" class="no-print" style="min-width: 260px; color: green; font-size: 16px;">&nbsp;</span>
 
     <button id="clearScrubBtn" onclick="clearUpload('fileInputScrub', 'scrubUploadName', 'scrubStatusLabel')" class="no-print" style="display:none; background-color:#d9534f; color:white; padding:8px 12px; border:none; border-radius:4px;">Clear</button>
@@ -350,19 +350,28 @@
     <!-- Right side -->
     <div class="no-print" style="margin-left:auto; display: flex; gap: 10px;">
       <button onclick="window.print()" style="background-color:#005EB8; color:white; padding:8px 12px; border:none; border-radius:4px;">🖨️ Print</button>
-      <button onclick="saveAsPDF()" style="background-color:#28a745; color:white; padding:8px 12px; border:none; border-radius:4px;">💾 PDF</button>
+<button onclick="saveCurrentViewWithState()">💾 Save</button>
+</button>
     </div>
   </div>
 
   <!-- Second Row (Anaes) -->
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: 237px;">
-<button onclick="document.getElementById('fileInputODP').click()" class="no-print" style="background-color:#005EB8; color:white; padding:8px 12px; border:none; border-radius:4px; margin-left:16px;">
-  Upload Anaes Daily Staffing Roster (xls)
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: 246px;">
+   <button onclick="document.getElementById('fileInputODP').click()" class="no-print" style="background-color:#005EB8; color:white; padding:8px 12px; border:none; border-radius:4px;">
+  Upload Anaes Daily Staff Roster
 </button>
+
+
     <span id="odpUploadName" class="no-print" style="min-width: 260px; color: green; font-size: 16px;">&nbsp;</span>
 
     <button id="clearODPBtn" onclick="clearUpload('fileInputODP', 'odpUploadName', 'odpStatusLabel')" class="no-print" style="display:none; background-color:#d9534f; color:white; padding:8px 12px; border:none; border-radius:4px;">Clear</button>
-    <button id="autoAllocateBtn" onclick="autoAllocateStaff()" class="no-print" style="display:none; background-color:#28a745; color:white; padding:8px 12px; border:none; border-radius:4px;">⚡ Auto-Allocate Staff</button>
+<button 
+  id="autoAllocateBtn" 
+  onclick="alert('⚠️ Feature not yet available');" 
+  class="no-print" 
+  style="display:none; background-color:#28a745; color:white; padding:8px 12px; border:none; border-radius:4px;">
+  ⚡ Auto-Allocate Staff 
+</button>
   </div>
 
   <!-- Hidden Upload Inputs -->
@@ -380,18 +389,64 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-function saveAsPDF() {
-  const element = document.body; // or a specific container div like document.getElementById("mainContent")
+// 1. Clean-up function
+function cleanupBeforeSaving() {
+  const seen = new Set();
 
-  const opt = {
-    margin:       0.5,
-    filename:     'RLH_Theatre_Allocation.pdf',
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2 },
-    jsPDF:        { unit: 'in', format: 'a3', orientation: 'portrait' }
-  };
+  // Remove duplicate or unassigned theatre blocks
+  document.querySelectorAll("#final-export-content .theatre-block").forEach(block => {
+    const theatreKey = block.getAttribute("data-theatre");
 
-  html2pdf().set(opt).from(element).save();
+    if (seen.has(theatreKey)) {
+      block.remove(); // remove duplicate
+    } else {
+      const hasAssigned = block.querySelector(".staff-entry span")?.textContent.trim();
+      if (!hasAssigned) {
+        block.remove(); // remove if empty
+      } else {
+        seen.add(theatreKey);
+      }
+    }
+  });
+}
+
+
+function saveAsHTML() {
+  const exportContent = document.querySelector("#final-export-content");
+  if (!exportContent) {
+    alert("Export content not found.");
+    return;
+  }
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const filename = `RLH Theatre Allocation - ${yyyy}-${mm}-${dd}.html`;
+
+  const fullHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${filename}</title>
+      <style>
+        ${[...document.querySelectorAll("style")].map(s => s.innerHTML).join("\n")}
+      </style>
+    </head>
+    <body>
+      ${exportContent.outerHTML}
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([fullHTML], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 function addStaffToTheatre() {
   const theatre = document.getElementById("theatre-select").value;
@@ -408,11 +463,6 @@ function addStaffToTheatre() {
   if (!staffList) return;
 
   const nameElements = Array.from(staffList.querySelectorAll(".staff-entry .name"));
-
-  // Get all existing role entries and clean their labels
-  const existingRoles = nameElements.map(el => el.textContent.replace(/⭐/g, '').trim());
-
-  // Filter to roles that match this one
   const matchingRoles = nameElements.filter(el =>
     el.textContent.replace(/⭐/g, '').trim().startsWith(role)
   );
@@ -420,21 +470,33 @@ function addStaffToTheatre() {
   const roleCount = matchingRoles.length;
   const nextRoleLabel = `${role} ${roleCount + 1}`;
 
-  // Create the new staff entry
   const staffEntry = document.createElement("div");
   staffEntry.className = "staff-entry";
   staffEntry.innerHTML = `
-    <div class="name">${nextRoleLabel}:</div>
-    <div class="value editable" contenteditable="true" style="font-weight: bold; color: #333;"> </div>
+    <span class="name">${nextRoleLabel}</span>
   `;
 
-  // Insert it after the last matching role
+  staffEntry.setAttribute("data-role", nextRoleLabel);
+  staffEntry.setAttribute("data-role-label", nextRoleLabel);
+  staffEntry.setAttribute("data-assigned", "false");
+  staffEntry.classList.add("staff-name");
+
   if (matchingRoles.length > 0) {
     const lastMatch = matchingRoles[matchingRoles.length - 1].parentElement;
     lastMatch.after(staffEntry);
   } else {
-    // If no matching role exists, just append
     staffList.appendChild(staffEntry);
+  }
+
+  // ✅ Notify popup window
+  if (window.parsedRosterWindow && !window.parsedRosterWindow.closed) {
+    window.parsedRosterWindow.postMessage({
+      type: "newRoleAdded",
+      payload: {
+        theatre,
+        role: nextRoleLabel
+      }
+    }, "*");
   }
 }
 
@@ -636,6 +698,14 @@ block.setAttribute("data-label", label); // ✅ Fix added
       </div>
     `;
   }
+document.querySelectorAll('.session-select').forEach(select => {
+  select.addEventListener('change', () => {
+    if (parsedStaffData.length > 0) {
+      clearAllAssignments(); // optional, if you want to reset existing allocations
+      autoAssignTheatre(parsedStaffData);
+    }
+  });
+});
 
   // ✅ Attach session dropdown listener AFTER innerHTML is set
   setTimeout(() => {
@@ -786,7 +856,7 @@ select.onchange = () => {
 
   if (isDefault && previousName) {
     // Unallocate the previously selected staff from 1490
-    window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+    window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
     allocatedStaff.delete(previousName);
     previousName = "";
     return;
@@ -798,13 +868,13 @@ select.onchange = () => {
   const currentName = nameParts.slice(-2).join(" "); // First Initial + Last Name
 
   if (currentName) {
-    // Unallocate any previously allocated person from this dropdown (to avoid duplicates)
+    // Unassign any previously assigned person from this dropdown (to avoid duplicates)
     if (previousName && previousName !== currentName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
       allocatedStaff.delete(previousName);
     }
 
-    // Allocate new staff to 1490
+    // Assign new staff to 1490
     window.postMessage({ type: "updateDesignation", name: currentName, theatre: "1490" }, "*");
     allocatedStaff.add(currentName);
     previousName = currentName;
@@ -858,7 +928,7 @@ select1494.onchange = () => {
 
   if (isDefault && previousName1494) {
     // Unallocate the previously selected staff from 1494
-    window.postMessage({ type: "unallocateDesignation", name: previousName1494 }, "*");
+    window.postMessage({ type: "unassignDesignation", name: previousName1494 }, "*");
     allocatedStaff.delete(previousName1494);
     previousName1494 = "";
     return;
@@ -870,13 +940,13 @@ select1494.onchange = () => {
   const currentName = nameParts.slice(-2).join(" "); // e.g., A Smith
 
   if (currentName) {
-    // Unallocate any previously allocated person from this dropdown (to avoid duplicates)
+    // Unassign any previously assigned person from this dropdown (to avoid duplicates)
     if (previousName1494 && previousName1494 !== currentName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousName1494 }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousName1494 }, "*");
       allocatedStaff.delete(previousName1494);
     }
 
-    // Allocate new staff to 1494
+    // Assign new staff to 1494
     window.postMessage({ type: "updateDesignation", name: currentName, theatre: "1494" }, "*");
     allocatedStaff.add(currentName);
     previousName1494 = currentName;
@@ -949,37 +1019,71 @@ window.addEventListener("message", (e) => {
     alert(`${person.name} is already allocated to ${staffAllocations[person.name]}. Please unallocate them first.`);
     return;
   }
+window.addEventListener("message", (event) => {
+  if (event.data?.type === "updateAllocatedStaff") {
+    const allocatedList = event.data.payload || [];
+
+    updateDropdownsFromAllocatedList(allocatedList);
+  }
+});
+function updateDropdownsFromAllocatedList(allocatedList) {
+  const dropdowns = document.querySelectorAll('[id^="dropdown-"], [id^="md-staff-"], [id^="floaters-staff-"]');
+
+  dropdowns.forEach(dropdown => {
+    const currentValue = dropdown.value;
+    const isStillValid = currentValue && !allocatedList.includes(currentValue);
+
+    dropdown.innerHTML = `<option value="">-- Select Staff --</option>`;
+
+    parsedRosterData.forEach(person => {
+      const label = `${person.title} ${person.name} (${person.shiftTime})`;
+
+      if (!allocatedList.includes(label) || (isStillValid && label === currentValue)) {
+        dropdown.appendChild(new Option(label, label));
+      }
+    });
+
+    dropdown.value = isStillValid ? currentValue : "";
+  });
+}
 
   const block = document.querySelector(`.theatre-block[data-theatre="${theatre}"]`);
-  const entries = block ? block.querySelectorAll(".staff-entry") : [];
+const entries = block ? block.querySelectorAll(".staff-entry") : [];
 
-  const baseRole = role.replace(/\s\d+$/, ""); // e.g., Scrub N/P from Scrub N/P 1
+for (const entry of entries) {
+  const nameSpan = entry.querySelector(".name");
+  if (!nameSpan) continue;
 
-  for (const entry of entries) {
-    const nameSpan = entry.querySelector(".name");
-    if (!nameSpan) continue;
+  const originalLabel = entry.getAttribute("data-role");
 
-    const currentContent = nameSpan.textContent.trim();
-    const originalLabel = entry.getAttribute("data-role");
-    const slotRole = originalLabel?.replace(/\s\d+$/, "");
+  // ✅ Allow role prefix matching (e.g. "Scrub N/P" matches "Scrub N/P 1")
+  if (!originalLabel || !originalLabel.startsWith(role)) continue;
 
-    if (slotRole !== baseRole) continue;
-    if (currentContent !== originalLabel) continue;
+  const currentContent = nameSpan.textContent.trim();
 
-    // Allocate staff
-    nameSpan.innerHTML = `<strong>${person.title} ${person.name}</strong> (${person.shiftTime})`;
-    entry.setAttribute("data-role", originalLabel); // keep tracking
-    staffAllocations[person.name] = theatre;
+  // ✅ Must be an unassigned slot (i.e. still has its original label)
+  if (currentContent !== originalLabel) continue;
 
-    e.source.postMessage({
-      type: "updateDesignation",
-      name: person.name,
-      theatre,
-    }, "*");
-    return;
-  }
+  // ✅ Assign staff
+  nameSpan.innerHTML = `
+    <span class="clickable-staff name" data-name="${person.name}" data-shift="${person.shiftTime}">
+      <strong>${person.title} ${person.name}</strong> (${person.shiftTime})
+    </span>`;
 
-  alert(`No available slot found in ${theatre} for ${role}.`);
+  entry.setAttribute("data-role", originalLabel); // keep tracking
+  staffAllocations[person.name] = theatre;
+
+  // ✅ Notify popup window
+  e.source.postMessage({
+    type: "updateDesignation",
+    name: person.name,
+    theatre,
+  }, "*");
+
+  return;
+}
+
+ alert(`No available slot found in ${theatre} for ${role}.`);
 
   // 2. Handle dropdown-based theatres
   const dropdowns = {
@@ -1038,27 +1142,24 @@ window.addEventListener("message", (e) => {
   if (e.data?.type === "unallocateStaffFromTheatre") {
     const { name, theatre } = e.data;
 
-    // 1️⃣ Unallocate from Theatre block
-const block = document.querySelector(`.theatre-block[data-theatre="\${theatre}"]`);
+    // 1️⃣ Unassign from Theatre block
+const block = document.querySelector(`.theatre-block[data-theatre="${theatre}"]`);
 if (block) {
   const slots = block.querySelectorAll("[data-role]");
   for (const slot of slots) {
     if (slot.textContent.includes(name)) {
-      const roleLabel = slot.getAttribute("data-role-label") || slot.getAttribute("data-role");
+  const roleLabel = slot.getAttribute("data-role-label") || slot.getAttribute("data-role");
 
-      // Restore role label
-      slot.textContent = roleLabel;
+  // Restore the original role label as plain text
+slot.innerHTML = `<span class="name">${roleLabel}</span>`;
 
-      // Reset attributes
-      slot.setAttribute("data-role-label", roleLabel);
-      slot.setAttribute("data-role", roleLabel);
-      slot.setAttribute("data-allocated", "false");
-      slot.removeAttribute("data-name");
-      slot.removeAttribute("data-shift");
-
-      // Reset class
-      slot.classList.remove("allocated", "highlight", "staff-name");
-      slot.classList.add("role-slot");
+  // Fully reset attributes
+  slot.setAttribute("data-role-label", roleLabel);
+  slot.setAttribute("data-assigned", "false");
+  slot.removeAttribute("data-name");
+  slot.removeAttribute("data-shift");
+  slot.classList.add("staff-name");
+  slot.classList.remove("allocated", "highlight");
 
       break;
     }
@@ -1090,94 +1191,82 @@ if (block) {
 let selectedForSwap = [];
 
 document.addEventListener("click", (e) => {
-  const target = e.target;
-  if (e.ctrlKey && target.classList.contains("clickable-staff")) {
-    target.style.backgroundColor = "#ffff66";
-    selectedForSwap.push(target);
+  const target = e.target.closest(".clickable-staff");
+  if (!target) return;
+
+  // --- Ctrl + Click for selecting staff to swap ---
+  if (e.ctrlKey) {
+    e.preventDefault();      // 🔒 Prevent opening link
+    e.stopPropagation();     // 🔇 Stop event from bubbling
+
+    const staffEntry = target.closest(".staff-entry");
+    if (!staffEntry) return;
+
+    // Highlight and store for swap
+    staffEntry.style.backgroundColor = "#ffff66";
+    selectedForSwap.push(staffEntry);
 
     if (selectedForSwap.length === 2) {
       const [el1, el2] = selectedForSwap;
-      const parent1 = el1.closest("[data-role]");
-      const parent2 = el2.closest("[data-role]");
+      const span1 = el1.querySelector(".name");
+      const span2 = el2.querySelector(".name");
 
-      if (parent1 && parent2) {
-        // ✅ Clone the elements
-        const clone1 = el1.cloneNode(true);
-        const clone2 = el2.cloneNode(true);
+      if (span1 && span2) {
+        // Swap innerHTML
+        const temp = span1.innerHTML;
+        span1.innerHTML = span2.innerHTML;
+        span2.innerHTML = temp;
 
-        // ✅ Preserve class and dataset
-        clone1.classList.add("clickable-staff");
-        clone2.classList.add("clickable-staff");
-        clone1.dataset.name = el1.dataset.name;
-        clone2.dataset.name = el2.dataset.name;
+        // Swap data-role
+        const tempRole = el1.dataset.role;
+        el1.dataset.role = el2.dataset.role;
+        el2.dataset.role = tempRole;
 
-        // ✅ Replace elements
-        el1.replaceWith(clone2);
-        el2.replaceWith(clone1);
-
-        // ✅ Update theatre mappings
-        const name1 = clone1.dataset.name;
-        const name2 = clone2.dataset.name;
-        const theatre1 = parent1.closest(".theatre-block")?.dataset.theatre;
-        const theatre2 = parent2.closest(".theatre-block")?.dataset.theatre;
+        // Update allocations
+        const name1 = el1.dataset.name;
+        const name2 = el2.dataset.name;
+        const theatre1 = el1.closest(".theatre-block")?.dataset.theatre;
+        const theatre2 = el2.closest(".theatre-block")?.dataset.theatre;
 
         if (name1 && theatre2) staffAllocations[name1] = theatre2;
         if (name2 && theatre1) staffAllocations[name2] = theatre1;
 
-        // ✅ Notify popup
+        // Notify
         window.postMessage({ type: "updateDesignation", name: name1, theatre: theatre2 }, "*");
         window.postMessage({ type: "updateDesignation", name: name2, theatre: theatre1 }, "*");
       }
 
-      // ✅ Reset highlights
-      selectedForSwap.forEach(el => (el.style.backgroundColor = ""));
+      selectedForSwap.forEach(el => el.style.backgroundColor = "");
       selectedForSwap = [];
     }
-  } else if (!e.ctrlKey) {
-    // Cancel selection on normal click
-    selectedForSwap.forEach(el => (el.style.backgroundColor = ""));
+  } else {
+    // Deselect all if clicked without Ctrl
+    selectedForSwap.forEach(el => el.style.backgroundColor = "");
     selectedForSwap = [];
   }
 });
-// 🖱️ Ctrl + Double Click = Unallocate from Theatre
+
+// --- Ctrl + Double Click to Unallocate ---
 document.addEventListener("dblclick", (e) => {
   const target = e.target;
   if (e.ctrlKey && target.classList.contains("clickable-staff")) {
     const name = target.dataset.name;
-    const roleSlot = target.closest("[data-role]");
-    const theatreBlock = target.closest(".theatre-block");
-    const theatre = theatreBlock?.dataset.theatre;
-    const originalLabel = roleSlot?.getAttribute("data-role") || "Unallocated";
+    const shift = target.dataset.shift;
 
-    if (roleSlot && theatre) {
-      // Reset role label
-      roleSlot.innerHTML = originalLabel;
+    const staffEntry = target.closest(".staff-entry");
+    if (staffEntry) {
+      const originalLabel = staffEntry.dataset.role || "Unassigned";
+      const nameSpan = staffEntry.querySelector(".name");
+      nameSpan.innerHTML = originalLabel;
 
       // Remove from allocations
       delete staffAllocations[name];
 
       // Notify popup
       window.postMessage({ type: "updateDesignation", name, theatre: "" }, "*");
-
-      // Clear dropdowns if present
-      const dropdown = document.getElementById(`dropdown-${theatre.toLowerCase()}`);
-      if (dropdown) {
-        [...dropdown.options].forEach((opt, idx) => {
-          if (opt.value.includes(name)) dropdown.remove(idx);
-        });
-        if (dropdown.value.includes(name)) dropdown.value = "";
-      }
-
-      // Clear MD if applicable
-      if (theatre === "MD") {
-        const mdDropdowns = document.querySelectorAll('[id^="md-staff-"]');
-        for (const md of mdDropdowns) {
-          if (md.value.includes(name)) md.value = "";
-        }
-      }
     }
 
-    // Unhighlight
+    // Also remove highlight
     target.style.backgroundColor = "";
   }
 });
@@ -1222,7 +1311,7 @@ select45871.addEventListener("change", () => {
   const currentName = nameParts.slice(-2).join(" "); // last two words as name
 
   if (!selectedValue && previousName45871) {
-    window.postMessage({ type: "unallocateDesignation", name: previousName45871 }, "*");
+    window.postMessage({ type: "unassignDesignation", name: previousName45871 }, "*");
     previousName45871 = "";
   } else if (currentName) {
     window.postMessage({ type: "updateDesignation", name: currentName, theatre: "45871" }, "*");
@@ -1266,7 +1355,7 @@ selectBlank.onchange = () => {
   const isDefault = selectedValue === "" || selectedValue === "-- Select Staff --";
 
   if (isDefault && previousNameBlank) {
-    window.postMessage({ type: "unallocateDesignation", name: previousNameBlank }, "*");
+    window.postMessage({ type: "unassignDesignation", name: previousNameBlank }, "*");
     allocatedStaff.delete(previousNameBlank);
     previousNameBlank = "";
     return;
@@ -1278,7 +1367,7 @@ selectBlank.onchange = () => {
 
   if (currentName) {
     if (previousNameBlank && previousNameBlank !== currentName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousNameBlank }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousNameBlank }, "*");
       allocatedStaff.delete(previousNameBlank);
     }
 
@@ -1303,6 +1392,7 @@ selectBlank.onchange = () => {
   }
 
   column2.appendChild(block);
+  updateTheatreClosedStatus(block); // ✅ This was missing
 });
 column2.appendChild(createTheatreBlock("Mile End"));
 const nightBlock = createTheatreBlock("Night");
@@ -1312,13 +1402,14 @@ for (let i = 0; i < 7; i++) addStaffEntry(nightStaffList, 'Scrub N/P');
 for (let i = 0; i < 2; i++) addStaffEntry(nightStaffList, 'HCA');
 for (let i = 0; i < 3; i++) addStaffEntry(nightStaffList, 'Anaes N/P');
 column2.appendChild(nightBlock);
+updateTheatreClosedStatus(nightBlock); // ✅ Add this line
 
 
 // ✅ This must be outside the template literal!
 document.getElementById("uploadWrapper")?.appendChild(uploadBlock);
 
 function autoAllocateStaff() {
-  if (!parsedRosterData || parsedRosterData.length === 0) {
+  if (!parsedRosterData.length) {
     alert("❌ No staff loaded. Please upload rosters first.");
     return;
   }
@@ -1326,63 +1417,36 @@ function autoAllocateStaff() {
   const theatres = ['Theatre 7', 'Theatre 12'];
   const roles = ['Scrub N/P 1', 'Scrub N/P 2', 'Scrub N/P 3', 'HCA 1', 'Anaes N/P 2'];
 
-  const isAllocated = new Set();
-
   theatres.forEach(theatre => {
     roles.forEach(role => {
-      // Find the actual slot in the theatre
-      const slot = document.querySelector(`[data-theatre="${theatre}"] [data-role="${role}"]`);
-      if (!slot) return;
+      let match;
 
-      // Only proceed if slot is not allocated
-      const alreadyAllocated = slot.getAttribute("data-allocated") === "true";
-      if (alreadyAllocated) return;
-
-      let match = null;
-
-      // Match logic
-      if (role === "Scrub N/P 1") {
+      if (role === 'Scrub N/P 1') {
         match = parsedRosterData.find(p =>
           !p.designation &&
-          !isAllocated.has(p.name) &&
-          p.role === "Scrub N/P" &&
-          p.band === "6" &&
-          p.shiftTime?.startsWith("08:00")
+          p.role === 'Scrub N/P' &&
+          p.band === '6' &&
+          p.shiftTime?.startsWith('08:00')
         );
-      } else if (role.startsWith("Scrub N/P")) {
+      } else {
+        const baseRole = role.split(' ')[0];
         match = parsedRosterData.find(p =>
           !p.designation &&
-          !isAllocated.has(p.name) &&
-          p.role === "Scrub N/P" &&
-          p.shiftTime?.startsWith("08:00")
-        );
-      } else if (role.startsWith("HCA")) {
-        match = parsedRosterData.find(p =>
-          !p.designation &&
-          !isAllocated.has(p.name) &&
-          p.role === "HCA" &&
-          p.shiftTime?.startsWith("08:00")
-        );
-      } else if (role.startsWith("Anaes N/P")) {
-        match = parsedRosterData.find(p =>
-          !p.designation &&
-          !isAllocated.has(p.name) &&
-          p.role === "Anaes N/P" &&
-          p.shiftTime?.startsWith("08:00")
+          p.role === baseRole &&
+          p.shiftTime?.startsWith('08:00')
         );
       }
 
-      // Allocate to slot if match found
       if (match) {
         match.designation = theatre;
-        isAllocated.add(match.name);
 
-        slot.innerHTML = `<span style="white-space: nowrap;"><strong>${match.title || ''} ${match.name}</strong> (${match.shiftTime})</span>`;
-        slot.setAttribute("data-name", match.name);
-        slot.setAttribute("data-shift", match.shiftTime);
-        slot.setAttribute("data-allocated", "true");
-        slot.classList.add("allocated", "staff-name");
-        slot.classList.remove("role-slot");
+        const target = document.querySelector(
+          `[data-theatre="${theatre}"] [data-role="${role}"]`
+        );
+
+        if (target) {
+          target.innerHTML = `<b>${match.name} (${match.shiftTime})</b>`;
+        }
       }
     });
   });
@@ -1393,7 +1457,7 @@ function autoAllocateStaff() {
 const mdBlock = document.createElement("div");
 mdBlock.className = "theatre-block";
 mdBlock.dataset.theatre = "MD";
-Object.allocate(mdBlock.style, {
+Object.assign(mdBlock.style, {
   display: "flex",
   flexDirection: "column",
   alignItems: "stretch",
@@ -1407,7 +1471,7 @@ Object.allocate(mdBlock.style, {
 // Label on top
 const mdLabel = document.createElement("div");
 mdLabel.textContent = "MD";
-Object.allocate(mdLabel.style, {
+Object.assign(mdLabel.style, {
   fontSize: "20px",
   fontWeight: "bold",
   backgroundColor: "#d9edf7",
@@ -1420,7 +1484,7 @@ Object.allocate(mdLabel.style, {
 // Dropdown container
 const mdDropdownContainer = document.createElement("div");
 mdDropdownContainer.id = "mdDropdownContainer";
-Object.allocate(mdDropdownContainer.style, {
+Object.assign(mdDropdownContainer.style, {
   display: "flex",
   flexDirection: "column",
   gap: "4px",
@@ -1434,7 +1498,7 @@ function createMdDropdown(index) {
   select.className = "stacked-input";
   select.innerHTML = `<option value=""></option>`;
 
-  Object.allocate(select.style, {
+  Object.assign(select.style, {
     width: "100%",
     height: "36px",
     fontSize: "16px",
@@ -1450,7 +1514,7 @@ function createMdDropdown(index) {
     const currentName = nameParts.slice(-2).join(" ");
 
     if (!selectedValue && previousName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
       previousName = "";
     }
 
@@ -1464,11 +1528,13 @@ function createMdDropdown(index) {
 }
 
 // Add first dropdown
-mdDropdownContainer.appendChild(createMdDropdown(0));
+for (let i = 0; i < 10; i++) {
+  mdDropdownContainer.appendChild(createMdDropdown(i));
+}
 
 // + / − button group
 const mdControlPanel = document.createElement("div");
-Object.allocate(mdControlPanel.style, {
+Object.assign(mdControlPanel.style, {
   display: "flex",
   gap: "4px",
   marginTop: "4px"
@@ -1476,20 +1542,17 @@ Object.allocate(mdControlPanel.style, {
 
 const mdAddButton = document.createElement("button");
 mdAddButton.textContent = "+";
-mdAddButton.style.fontSize = "14px";
+mdAddButton.classList.add("round-icon-button", "purple-button"); // Optional: purple theme
 mdAddButton.onclick = () => {
   const newIndex = mdDropdownContainer.children.length;
   const newDropdown = createMdDropdown(newIndex);
   mdDropdownContainer.appendChild(newDropdown);
-
-  // 🔁 Populate the newly added dropdown
   fillDropdown(newDropdown, band7Staff); // or window.band7Staff
 };
 
-
 const mdRemoveButton = document.createElement("button");
 mdRemoveButton.textContent = "−";
-mdRemoveButton.style.fontSize = "14px";
+mdRemoveButton.classList.add("round-icon-button", "purple-button");
 mdRemoveButton.onclick = () => {
   if (mdDropdownContainer.children.length > 1) {
     mdDropdownContainer.removeChild(mdDropdownContainer.lastChild);
@@ -1506,11 +1569,12 @@ mdBlock.appendChild(mdControlPanel);
 
 // Append to column
 column3.appendChild(mdBlock);
+
 // Create Floaters block
 const floatersBlock = document.createElement("div");
 floatersBlock.className = "theatre-block";
 floatersBlock.dataset.theatre = "Floaters";
-Object.allocate(floatersBlock.style, {
+Object.assign(floatersBlock.style, {
   display: "flex",
   flexDirection: "column",
   alignItems: "stretch",
@@ -1524,7 +1588,7 @@ Object.allocate(floatersBlock.style, {
 // Label on top
 const floatersLabel = document.createElement("div");
 floatersLabel.textContent = "FLOATERS";
-Object.allocate(floatersLabel.style, {
+Object.assign(floatersLabel.style, {
   fontSize: "20px",
   fontWeight: "bold",
   backgroundColor: "#d9edf7",
@@ -1537,7 +1601,7 @@ Object.allocate(floatersLabel.style, {
 // Dropdown container
 const floatersDropdownContainer = document.createElement("div");
 floatersDropdownContainer.id = "floatersDropdownContainer";
-Object.allocate(floatersDropdownContainer.style, {
+Object.assign(floatersDropdownContainer.style, {
   display: "flex",
   flexDirection: "column",
   gap: "4px",
@@ -1551,7 +1615,7 @@ function createFloatersDropdown(index) {
   select.className = "stacked-input";
   select.innerHTML = `<option value=""></option>`;
 
-  Object.allocate(select.style, {
+  Object.assign(select.style, {
     width: "100%",
     height: "36px",
     fontSize: "16px",
@@ -1572,7 +1636,7 @@ function createFloatersDropdown(index) {
     const currentName = nameParts.slice(-2).join(" ");
 
     if (!selectedValue && previousName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
       previousName = "";
     }
 
@@ -1586,11 +1650,14 @@ function createFloatersDropdown(index) {
 }
 
 // Add initial dropdown
-floatersDropdownContainer.appendChild(createFloatersDropdown(0));
+for (let i = 0; i < 10; i++) {
+  floatersDropdownContainer.appendChild(createFloatersDropdown(i));
+}
+
 
 // + / − button group
 const floatersControlPanel = document.createElement("div");
-Object.allocate(floatersControlPanel.style, {
+Object.assign(floatersControlPanel.style, {
   display: "flex",
   gap: "4px",
   marginTop: "4px"
@@ -1598,20 +1665,21 @@ Object.allocate(floatersControlPanel.style, {
 
 const floatersAddButton = document.createElement("button");
 floatersAddButton.textContent = "+";
-floatersAddButton.style.fontSize = "14px";
+floatersAddButton.classList.add("round-icon-button", "purple-button");
 floatersAddButton.onclick = () => {
   const newIndex = floatersDropdownContainer.children.length;
   const newDropdown = createFloatersDropdown(newIndex);
   floatersDropdownContainer.appendChild(newDropdown);
 
-  // 🔁 Populate the newly added dropdown
-  fillDropdown(newDropdown, parsedRosterData); // or window.parsedRosterData
+  // 🟢 Always attempt to fill it after adding
+  if (window.parsedRosterData?.length > 0) {
+    fillDropdown(newDropdown, window.parsedRosterData);
+  }
 };
-;
 
 const floatersRemoveButton = document.createElement("button");
 floatersRemoveButton.textContent = "−";
-floatersRemoveButton.style.fontSize = "14px";
+floatersRemoveButton.classList.add("round-icon-button", "purple-button");
 floatersRemoveButton.onclick = () => {
   if (floatersDropdownContainer.children.length > 1) {
     floatersDropdownContainer.removeChild(floatersDropdownContainer.lastChild);
@@ -1636,9 +1704,9 @@ gridContainer.appendChild(column2);
 gridContainer.appendChild(column3);
  });
 function clearAllAllocations() {
-      const allocatedSpans = document.querySelectorAll('.allocated');
-      allocatedSpans.forEach(span => {
-        span.textContent = ''; // Clear the allocated name
+      const assignedSpans = document.querySelectorAll('.assigned');
+      assignedSpans.forEach(span => {
+        span.textContent = ''; // Clear the assigned name
       });
 
       // Optional: If you want to reset designations or send message to another window
@@ -1673,7 +1741,7 @@ function sendClearToPopup() {
 // Then your initializePage() and other setup code...
 
 // 🔽 Place the setup function right after
-function setupDropdownUnallocate(selectElement, theatreName) {
+function setupDropdownUnassign(selectElement, theatreName) {
   if (!selectElement) return;
 
   selectElement.addEventListener("change", () => {
@@ -1682,7 +1750,7 @@ function setupDropdownUnallocate(selectElement, theatreName) {
     const previousName = previousDropdownSelections.get(dropdownId);
 
     if (!selectedValue && previousName) {
-      window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+      window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
       allocatedStaff.delete(previousName);
       previousDropdownSelections.delete(dropdownId);
       return;
@@ -1694,7 +1762,7 @@ function setupDropdownUnallocate(selectElement, theatreName) {
 
     if (currentName) {
       if (previousName && previousName !== currentName) {
-        window.postMessage({ type: "unallocateDesignation", name: previousName }, "*");
+        window.postMessage({ type: "unassignDesignation", name: previousName }, "*");
         allocatedStaff.delete(previousName);
       }
 
@@ -1718,12 +1786,12 @@ function allocateFromParsedRoster(person, theatreLabel, roleLabel) {
 
   for (let span of slots) {
     const currentLabel = span.getAttribute('data-role-label');
-    const isUnallocateed =
+    const isUnassigned =
       !span.getAttribute("data-name") &&
       !span.textContent.includes("(") &&
       span.textContent.trim() === currentLabel;
 
-    if (currentLabel === roleLabel && isUnallocateed) {
+    if (currentLabel === roleLabel && isUnassigned) {
       span.textContent = `${person.name} (${person.shift})`;
       span.classList.add('allocated');
 
@@ -1731,7 +1799,7 @@ function allocateFromParsedRoster(person, theatreLabel, roleLabel) {
       span.setAttribute('data-role-label', currentLabel);
       span.setAttribute('data-name', person.name);
       span.setAttribute('data-shift', person.shift);
-      span.setAttribute('data-allocateed', "true");
+      span.setAttribute('data-assigned', "true");
 
       if (window.parsedRosterWindow && !window.parsedRosterWindow.closed) {
         window.parsedRosterWindow.postMessage({
@@ -1784,7 +1852,7 @@ async function parseUploadedExcel(file, uploadSource) {
           ? `${nameRaw.split(",")[1].trim().charAt(0)} ${nameRaw.split(",")[0].trim()}`
           : nameRaw;
 
-        // 🎭 Role allocation
+        // 🎭 Role assignment
         let role = "Scrub N/P";
         if (title === "HCA") role = "HCA";
         else if (uploadSource === "Anaes N/P") role = "Anaes N/P";
@@ -1859,11 +1927,11 @@ function clearUpload(inputId, linkContainerId, statusLabelId) {
   // Filter them out of parsedRosterData
   parsedRosterData = parsedRosterData.filter(p => p.role !== roleToClear);
 
-  // Clear allocation in theatre blocks
+  // Clear assignments in theatre blocks
   const staffElements = document.querySelectorAll('.theatre-block .staff-name');
   staffElements.forEach(el => {
-    const allocatedName = (el.getAttribute('data-name') || '').toUpperCase();
-    if (clearedNames.includes(allocatedName)) {
+    const assignedName = (el.getAttribute('data-name') || '').toUpperCase();
+    if (clearedNames.includes(assignedName)) {
       el.textContent = el.getAttribute('data-role-label') || '';
       el.classList.remove('allocated');
       el.removeAttribute('data-name');
@@ -1908,23 +1976,8 @@ async function handleExcelUpload(input, linkContainerId, statusLabelId, source) 
     document.getElementById(linkContainerId).style.color = "green";
 
     const parsed = await parseUploadedExcel(file, source);
-parsedRosterData = [...parsedRosterData, ...parsed];
-
-if (source === 'Scrub N/P') scrubUploaded = true;
-if (source === 'Anaes N/P') anaesUploaded = true;
-
-checkShowButtons(); // ✅ Must come *after* the above
-
-
-// ✅ Reset designations on just-parsed staff
-parsed.forEach(p => p.designation = "");
-
-// ✅ Add to the main list
-parsedRosterData = [...parsedRosterData, ...parsed];
-
-// ✅ Then auto-allocate them
-autoAllocateTheatre(parsedRosterData);
-
+    parsedRosterData = [...parsedRosterData, ...parsed];
+    autoAssignTheatre(parsedRosterData);
     populateSpecialDropdowns();
 
     // ✅ Update flags
@@ -1970,6 +2023,19 @@ function previewExcelAsPDF() {
   newWin.document.close();
 }
 
+const selectedStaff = new Set();
+
+function initializePage() {
+  createTheatreBlocks();
+
+  // Delay to ensure blocks render first
+  setTimeout(() => {
+    populateSpecialDropdowns();
+    setupAllDropdownUnassignListeners();
+    attachDropdownChangeListeners();
+  }, 100);
+}
+
 function populateSpecialDropdowns() {
   const dropdown1490 = document.getElementById("dropdown-1490");
   const dropdown45871 = document.getElementById("dropdown-45871");
@@ -1978,101 +2044,110 @@ function populateSpecialDropdowns() {
 
   if (!parsedRosterData.length) return;
 
-  // ✅ Band 6 or 7 (non-night)
   const seniorStaff = parsedRosterData.filter(p =>
     (p.band === "6" || p.band === "7") &&
     !p.shiftTime.startsWith("20:00")
   );
 
-  // ✅ Band 6 or 7 AND title is RN or role is Scrub N/P
   const seniorScrubStaff = seniorStaff.filter(p =>
     p.title === "RN" || (p.role && p.role === "Scrub N/P")
   );
 
-  // ✅ Anaesthetics Band 6/7 only
   const anaestheticsSeniorStaff = seniorStaff.filter(p =>
     p.team && p.team.toUpperCase().includes("ANAESTHETICS")
   );
 
-  // ✅ Band 7 only
   const band7Staff = parsedRosterData.filter(p => p.band === "7");
 
-  // ✅ All staff
-  const allStaff = parsedRosterData;
-
-  // 🔁 Fills any dropdown element with a list of staff
   function fillDropdown(dropdown, staffList) {
     if (!dropdown) return;
+    const currentValue = dropdown.value;
     dropdown.innerHTML = `<option value="">-- Select Staff --</option>`;
     staffList.forEach(person => {
       const label = `${person.title} ${person.name} (${person.shiftTime})`;
-      dropdown.appendChild(new Option(label, label));
+      if (!selectedStaff.has(label) || label === currentValue) {
+        dropdown.appendChild(new Option(label, label));
+      }
     });
+    dropdown.value = [...dropdown.options].some(o => o.value === currentValue) ? currentValue : "";
   }
 
-  // Fill fixed dropdowns
   fillDropdown(dropdown1490, seniorStaff);
   fillDropdown(dropdown45871, seniorStaff);
   fillDropdown(dropdownBlank, seniorScrubStaff);
   fillDropdown(dropdown1494, anaestheticsSeniorStaff);
 
-  // Fill dynamic MD dropdowns
-  const mdDropdowns = Array.from(document.querySelectorAll('[id^="md-staff-"]'));
+  const mdDropdowns = document.querySelectorAll('[id^="md-staff-"]');
   mdDropdowns.forEach(dropdown => fillDropdown(dropdown, band7Staff));
 
-  // Fill dynamic Floater dropdowns
-  const floatersDropdowns = Array.from(document.querySelectorAll('[id^="floaters-staff-"]'));
-// ✅ Populate all floaters-staff-* dropdowns
-floatersDropdowns.forEach(dropdown => fillDropdown(dropdown, parsedRosterData));
+  const floatersDropdowns = document.querySelectorAll('[id^="floaters-staff-"]');
+  floatersDropdowns.forEach(dropdown => fillDropdown(dropdown, parsedRosterData));
 }
-function initializePage() {
-  createTheatreBlocks();         // 🧱 This creates the dropdowns in the DOM
-  populateSpecialDropdowns();   // 🎯 This fills them with options
 
-  // ✅ Now check if each dropdown exists before allocating listener
-  const dropdown1490 = document.getElementById("dropdown-1490");
-  console.log("1490 exists?", dropdown1490);
-  setupDropdownUnallocate(dropdown1490, "1490");
+function setupAllDropdownUnassignListeners() {
+  setupDropdownUnassign(document.getElementById("dropdown-1490"), "1490");
+  setupDropdownUnassign(document.getElementById("dropdown-1494"), "1494");
+  setupDropdownUnassign(document.getElementById("dropdown-45871"), "45871");
+  setupDropdownUnassign(document.getElementById("dropdown-blank"), "Blank");
 
-  const dropdown1494 = document.getElementById("dropdown-1494");
-  console.log("1494 exists?", dropdown1494);
-  setupDropdownUnallocate(dropdown1494, "1494");
-
-  const dropdown45871 = document.getElementById("dropdown-45871");
-  console.log("45871 exists?", dropdown45871);
-  setupDropdownUnallocate(dropdown45871, "45871");
-
-  const dropdownBlank = document.getElementById("dropdown-blank");
-  console.log("Blank exists?", dropdownBlank);
-  setupDropdownUnallocate(dropdownBlank, "Blank");
-
-  // MD and Floater dropdowns — loop through all matches
   document.querySelectorAll('[id^="md-staff-"]').forEach(select => {
-    console.log("MD dropdown exists?", select.id);
-    setupDropdownUnallocate(select, "MD");
+    setupDropdownUnassign(select, "MD");
   });
 
   document.querySelectorAll('[id^="floaters-staff-"]').forEach(select => {
-    console.log("Floater dropdown exists?", select.id);
-    setupDropdownUnallocate(select, "Floater");
+    setupDropdownUnassign(select, "Floater");
   });
 }
 
- function setupAllDropdownUnallocateListeners() {
-  setupDropdownUnallocate(document.getElementById("dropdown-1490"), "1490");
-  setupDropdownUnallocate(document.getElementById("dropdown-1494"), "1494");
-  setupDropdownUnallocate(document.getElementById("dropdown-45871"), "45871");
-  setupDropdownUnallocate(document.getElementById("dropdown-blank"), "Blank");
+function setupDropdownUnassign(dropdown, label) {
+  if (!dropdown) return;
 
-  document.querySelectorAll('[id^="md-staff-"]').forEach(select => {
-    setupDropdownUnallocate(select, "MD");
-  });
+  dropdown.addEventListener("change", () => {
+    const selectedValue = dropdown.value;
+    if (!selectedValue) return;
 
-  document.querySelectorAll('[id^="floaters-staff-"]').forEach(select => {
-    setupDropdownUnallocate(select, "Floater");
+    // Check for duplicates
+    const allDropdowns = Array.from(document.querySelectorAll("select"));
+    for (const otherDropdown of allDropdowns) {
+      if (otherDropdown !== dropdown && otherDropdown.value === selectedValue) {
+        const conflictLabel = getDropdownLabel(otherDropdown);
+        alert(`"${selectedValue}" is already allocated in ${conflictLabel}. Unallocate before reallocating.`);
+        dropdown.value = "";
+        return;
+      }
+    }
+
+    updateSelectedStaff();
+    populateSpecialDropdowns();
   });
 }
 
+function getDropdownLabel(dropdown) {
+  const id = dropdown.id;
+  if (id.includes("1490")) return "1490";
+  if (id.includes("1494")) return "1494";
+  if (id.includes("45871")) return "45871";
+  if (id.includes("blank")) return "Blank";
+  if (id.includes("md-staff")) return "MD";
+  if (id.includes("floaters-staff")) return "Floater";
+  return "Unknown";
+}
+
+function attachDropdownChangeListeners() {
+  document.querySelectorAll('[id^="dropdown-"], [id^="md-staff-"], [id^="floaters-staff-"]').forEach(drop => {
+    drop.addEventListener("change", () => {
+      updateSelectedStaff();
+      populateSpecialDropdowns();
+    });
+  });
+}
+
+function updateSelectedStaff() {
+  selectedStaff.clear();
+  document.querySelectorAll('[id^="dropdown-"], [id^="md-staff-"], [id^="floaters-staff-"]').forEach(drop => {
+    if (drop.value) selectedStaff.add(drop.value);
+  });
+}
 
 async function processBothExcels() {
   const scrubFile = document.getElementById("fileInputScrub").files[0];
@@ -2083,14 +2158,17 @@ async function processBothExcels() {
 
   parsedRosterData = [...scrubData, ...odpData];
 
-autoAllocateTheatre(parsedRosterData);
+  autoAssignTheatre(parsedRosterData);  // ✅ allocate immediately
   populateSpecialDropdowns();
 }
 
-function autoAllocateTheatre(data) {
+function autoAssignTheatre(data) {
   const theatreMap = {
-    "Theatre 7": ["Scrub N/P 1", "Scrub N/P 2", "Scrub N/P 3", "HCA 1", "Anaes N/P 2"],
-    "Theatre 12": ["Scrub N/P 1", "Scrub N/P 2", "Scrub N/P 3", "HCA 1", "Anaes N/P 2"],
+    "Theatre 7": ["Scrub N/P 1", "Scrub N/P 2", "Scrub N/P 3", "HCA 1", "Anaes N/P 1"],
+    "Theatre 9": ["Scrub N/P 1", "Scrub N/P 2", "HCA 1", "Anaes N/P 1"],
+    "Theatre 10": ["Scrub N/P 1", "Scrub N/P 2", "HCA 1", "Anaes N/P 1"],
+    "Theatre 11": ["Scrub N/P 1", "Scrub N/P 2", "HCA 1", "Anaes N/P 1"],
+    "Theatre 12": ["Scrub N/P 1", "Scrub N/P 2", "Scrub N/P 3", "HCA 1", "Anaes N/P 1"],
     "Night": [
       "Scrub N/P 1", "Scrub N/P 2", "Scrub N/P 3", "Scrub N/P 4", "Scrub N/P 5", "Scrub N/P 6", "Scrub N/P 7",
       "HCA 1", "HCA 2",
@@ -2098,97 +2176,184 @@ function autoAllocateTheatre(data) {
     ]
   };
 
-  const roleMap = {
-    "RN": "Scrub N/P",
-    "HCA": "HCA",
-    "ODP": "Anaes N/P"
-  };
-
   const slotFilled = {};
+  const isAssigned = new Set();
+
   for (const theatre in theatreMap) {
     slotFilled[theatre] = {};
     theatreMap[theatre].forEach(role => slotFilled[theatre][role] = false);
   }
 
-  const isAllocated = new Set();
+  const theatreTeamRules = {
+    "Theatre 9": { shift: "08:00-20:00", team: "Orthopaedics" },
+    "Theatre 10": { shift: "08:00-20:00", team: "Orthopaedics" },
+    "Theatre 11": { shift: "08:00-20:00", team: "Neurosurgery" },
+    "Night": { shift: "20:00-08:30", team: null }
+  };
 
-  data.forEach(person => {
-    const role = roleMap[person.title] || person.role || "";
-    const name = person.name?.trim();
-    const shift = person.shiftTime?.replace(/\s+/g, '').replace(/–/g, '-');
+  for (const theatre of ["Theatre 7", "Theatre 12"]) {
+    for (const person of data) {
+      const shift = person.shiftTime.replace(/\s+/g, '').replace(/–/g, '-');
+      const nameKey = person.name + person.shiftTime;
+      if (
+        shift === "08:00-20:30" &&
+        person.role === "Scrub N/P" &&
+        person.name.includes("*") &&
+        !isAssigned.has(nameKey) &&
+        !slotFilled[theatre]["Scrub N/P 1"]
+      ) {
+        assignToSlot(theatre, "Scrub N/P 1", person);
+        slotFilled[theatre]["Scrub N/P 1"] = true;
+        person.designation = theatre;
+        isAssigned.add(nameKey);
+      }
+    }
+  }
 
-    if (!name || isAllocated.has(name + shift)) return;
+  for (const [theatre, { shift: requiredShift, team: requiredTeam }] of Object.entries(theatreTeamRules)) {
+    for (const person of data) {
+      const shift = person.shiftTime?.replace(/\s+/g, '').replace(/–/g, '-') || '';
+      const nameKey = person.name + person.shiftTime;
+      const team = person.team?.trim() || '';
 
-    const isNightShift = shift === "20:00-08:30" || shift === "20:30-08:30";
-    const isDayShift = shift === "08:00-20:30";
+      if (isAssigned.has(nameKey)) continue;
+      const matchesShift = (shift === requiredShift) || (theatre === "Night" && shift === "20:30-08:30");
+      if (!matchesShift) continue;
+      if (requiredTeam && team !== requiredTeam) continue;
 
-    const targets = isNightShift ? ["Night"] : isDayShift ? ["Theatre 7", "Theatre 12"] : [];
+      if (
+        person.role === "Scrub N/P" &&
+        person.name.includes("*") &&
+        !slotFilled[theatre]["Scrub N/P 1"]
+      ) {
+        assignToSlot(theatre, "Scrub N/P 1", person);
+        slotFilled[theatre]["Scrub N/P 1"] = true;
+        person.designation = theatre;
+        isAssigned.add(nameKey);
+      }
+    }
+  }
 
-    for (const theatre of targets) {
-      if (person.designation) break;
+  for (const person of data) {
+    const shift = person.shiftTime.replace(/\s+/g, '').replace(/–/g, '-');
+    const band = person.band;
+    const role = person.role;
+    const team = person.team?.trim() || '';
+    const nameKey = person.name + person.shiftTime;
+    if (isAssigned.has(nameKey)) continue;
+
+    const theatresToCheck = (shift === "08:00-20:30")
+      ? ["Theatre 7", "Theatre 12"]
+      : (shift === "08:00-20:00")
+        ? ["Theatre 9", "Theatre 10", "Theatre 11"]
+        : (shift === "20:00-08:30" || shift === "20:30-08:30")
+          ? ["Night"]
+          : [];
+
+    for (const theatre of theatresToCheck) {
+      if (
+        theatreTeamRules[theatre] &&
+        theatreTeamRules[theatre].team &&
+        team !== theatreTeamRules[theatre].team
+      ) {
+        continue;
+      }
 
       for (const slot of theatreMap[theatre]) {
         if (slotFilled[theatre][slot]) continue;
+        if (isAssigned.has(nameKey)) break;
 
-        const isMatchingSlot = slot.startsWith(role);
-        if (!isMatchingSlot) continue;
+        if (
+          slot.startsWith("Scrub N/P") &&
+          role === "Scrub N/P" &&
+          person.name.includes("*") &&
+          slot !== "Scrub N/P 1"
+        ) continue;
 
-        // Scrub N/P 1 must have *
-        if (slot === "Scrub N/P 1" && role === "Scrub N/P" && !name.includes("*")) continue;
-        // Scrub N/P 2+ must not have *
-        if (slot !== "Scrub N/P 1" && role === "Scrub N/P" && name.includes("*")) continue;
-
-        const slotEl = document.querySelector(
-          `[data-theatre="${theatre}"] [data-role="${slot}"]`
-        );
-        if (slotEl) {
-          slotEl.innerHTML = `<span style="white-space: nowrap;"><strong>${role} ${name}</strong> (${person.shiftTime})</span>`;
-          slotEl.classList.add("allocated");
-          slotEl.setAttribute("data-name", name);
-          slotEl.setAttribute("data-shift", person.shiftTime);
-          slotEl.setAttribute("data-role-label", slot);
-          slotEl.setAttribute("data-allocated", "true");
-
+        if (
+          slot.startsWith("Scrub N/P") &&
+          role === "Scrub N/P" &&
+          (["5", "6"].includes(band))
+        ) {
+          assignToSlot(theatre, slot, person);
           slotFilled[theatre][slot] = true;
           person.designation = theatre;
-          isAllocated.add(name + shift);
+          isAssigned.add(nameKey);
+          break;
+        }
+
+        if (slot.startsWith("HCA") && role === "HCA") {
+          assignToSlot(theatre, slot, person);
+          slotFilled[theatre][slot] = true;
+          person.designation = theatre;
+          isAssigned.add(nameKey);
+          break;
+        }
+
+        if (slot.startsWith("Anaes N/P") && role === "Anaes N/P") {
+          assignToSlot(theatre, slot, person);
+          slotFilled[theatre][slot] = true;
+          person.designation = theatre;
+          isAssigned.add(nameKey);
           break;
         }
       }
     }
-  });
-
-  renderRoster(); // Reflect changes in popup
-  alert("✅ Auto-allocation complete.");
+  }
 }
 
-function allocateToSlot(theatreLabel, roleLabel, person) {
+function assignToSlot(theatreLabel, roleLabel, person) {
   const slot = document.querySelector(
     `[data-theatre="${theatreLabel}"] [data-role="${roleLabel}"]`
   );
-  if (slot) {
-    slot.innerHTML = `<span style="white-space: nowrap;"><strong>${person.title.trim()} ${person.name.trim()}</strong> (${person.shiftTime.trim()})</span>`;
-    slot.classList.add("allocated");
-    slot.setAttribute("data-name", person.name);
-    slot.setAttribute("data-shift", person.shiftTime);
-    slot.setAttribute("data-role-label", roleLabel);
-    slot.setAttribute("data-allocated", "true");
+
+  if (slot && person) {
+    const title = person.title?.trim() || '';
+    const name = person.name?.trim() || '';
+    const shiftTime = person.shiftTime?.trim() || '';
+    const profileUrl = person.profileUrl?.trim() || '#';
+
+    if (!slot.querySelector(`[data-name="${name}"]`)) {
+      slot.innerHTML = `
+        <div class="staff-entry" data-role="${roleLabel}" data-name="${name}">
+          <span class="clickable-staff name" data-name="${name}" style="white-space: nowrap;">
+            <strong>
+              <a href="${profileUrl}" class="clickable-staff" data-name="${name}" style="text-decoration: none; color: inherit;">
+                ${title} ${name}
+              </a>
+            </strong> (${shiftTime})
+          </span>
+        </div>`;
+    }
+  }
+}function assignBySpeciality(theatre, speciality, staffRoster) {
+  const slots = document.querySelectorAll(`[data-theatre="${theatre}"] [data-role]`);
+  const filled = new Set();
+
+  for (const person of staffRoster) {
+    if (!person.specialities || !person.specialities.includes(speciality)) continue;
+
+    for (const slot of slots) {
+      const roleLabel = slot.getAttribute("data-role");
+
+      if (filled.has(roleLabel)) continue;
+      if (roleLabel.startsWith(person.role)) {
+        assignToSlot(theatre, roleLabel, person);
+        filled.add(roleLabel);
+        break;
+      }
+    }
   }
 }
+
 async function openHealthRosterWindow() {
-  const data = await processBothExcels();
-  parsedRosterData = data || [];
+  await processBothExcels();
 
   const win = window.open("", "_blank", "width=1000,height=700");
   const doc = win.document;
 
-  if (!parsedRosterData || parsedRosterData.length === 0) {
-    win.document.write("<p style='padding:2rem;font-size:18px;color:red;'>❌ No staff data available. Please upload the health roster first.</p>");
-    win.document.close();
-    return;
-  }
-
-  doc.write(`<html>
+  doc.write(`
+       <html>
       <head>
         <title>Daily Staffing Report</title>
         <style>
@@ -2477,6 +2642,11 @@ setTimeout(() => {
   summaryHTML += "</div>";
   summaryDiv.innerHTML = summaryHTML;
 }
+function normalizeName(name) {
+  return name.replace(/^RN\s+/i, "") // Remove RN prefix
+             .replace(/\s+/g, " ")    // Collapse multiple spaces
+             .trim();
+}
 
 
   function renderRoster() {
@@ -2631,10 +2801,30 @@ win.document.getElementById("removeStaffBtn").addEventListener("click", () => {
 });
   renderRoster();
 
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "newRoleAdded") {
+    const { theatre, role } = e.data.payload;
+
+    // ✅ Store or append to your role cache per theatre
+    if (!dynamicRoleMap[theatre]) dynamicRoleMap[theatre] = [];
+    if (!dynamicRoleMap[theatre].includes(role)) {
+      dynamicRoleMap[theatre].push(role);
+    }
+
+    // Optional: re-render context menu if open
+  }
+});
+
   window.addEventListener("message", (e) => {
   if (e.data?.type === "updateDesignation") {
     const { name, theatre } = e.data;
-    const person = parsedRosterData.find(p => p.name === name);
+
+    const normalizedName = normalizeName(name);
+
+    const person = parsedRosterData.find(
+      p => normalizeName(p.name) === normalizedName
+    );
+
     if (person) {
       person.designation = theatre;
       renderRoster();
@@ -2642,8 +2832,9 @@ win.document.getElementById("removeStaffBtn").addEventListener("click", () => {
   }
 });
 
+
 window.addEventListener("message", (e) => {
-  if (e.data?.type === "unallocateDesignation") {
+  if (e.data?.type === "unassignDesignation") {
     const { name } = e.data;
     const person = parsedRosterData.find(p => p.name === name);
     if (person) {
@@ -2676,47 +2867,89 @@ window.addEventListener("message", (e) => {
     function buildContextMenu(x, y) {
   contextMenu.innerHTML = "";
 
-  // Only two actions: Allocate and Unallocate
   const actions = ["Allocate", "Unallocate"];
+
+  const floorStructure = {
+    "4th Floor (Day)": ["Theatre 1", "Theatre 2", "Theatre 3", "Theatre 4", "Theatre 5", "Theatre 6", "Theatre 7", "Theatre 8", "Theatre 9", "Theatre 10", "Theatre 11", "Theatre 12"],
+    "4th Floor (Night)": "roles",
+    "3rd Floor": ["ACAD 1", "ACAD 2", "ACAD 3", "ACAD 4", "ACAD 5", "ACAD 6", "ACAD 7", "ACAD 8"],
+    "Mile End": "roles"
+  };
 
   actions.forEach(action => {
     const div = win.document.createElement("div");
     div.textContent = action;
-    div.className = action === "Allocate" ? "submenu-item" : "submenu-item";
+    div.className = "submenu-item";
 
     if (action === "Allocate") {
-      const submenu = win.document.createElement("div");
-      submenu.className = "submenu";
+      const floorMenu = win.document.createElement("div");
+      floorMenu.className = "submenu";
 
-      const theatres = [
-        "Theatre 1", "Theatre 2", "Theatre 3", "Theatre 4", "Theatre 5", "Theatre 6",
-        "Theatre 7", "Theatre 8", "Theatre 9", "Theatre 10", "Theatre 11", "Theatre 12",
-        "ACAD 1", "ACAD 2", "ACAD 3", "ACAD 4", "ACAD 5", "ACAD 6", "ACAD 7", "ACAD 8",
-        "Mile End", "Night"
-      ];
+      Object.entries(floorStructure).forEach(([floor, items]) => {
+        const floorDiv = win.document.createElement("div");
+        floorDiv.textContent = floor;
+        floorDiv.className = "submenu-item";
+        floorDiv.style.position = "relative";
 
-      theatres.forEach(theatre => {
-        const theatreDiv = win.document.createElement("div");
-        theatreDiv.textContent = theatre;
-        theatreDiv.className = "submenu-item";
-        theatreDiv.style.position = "relative";
+        const levelMenu = win.document.createElement("div");
+        levelMenu.className = "submenu";
 
-        theatreDiv.addEventListener("mouseenter", () => {
-          const existing = theatreDiv.querySelector(".submenu");
-          if (existing) existing.remove();
+        if (Array.isArray(items)) {
+          // Theatres/ACADs
+          items.forEach(theatre => {
+            const theatreDiv = win.document.createElement("div");
+            theatreDiv.textContent = theatre;
+            theatreDiv.className = "submenu-item";
+            theatreDiv.style.position = "relative";
 
-          const roleSubmenu = win.document.createElement("div");
-          roleSubmenu.className = "submenu";
+            theatreDiv.addEventListener("mouseenter", () => {
+              if (theatreDiv.querySelector(".submenu")) return;
 
-          const roles = getRolesForTheatre(theatre);
+              const roleMenu = win.document.createElement("div");
+              roleMenu.className = "submenu";
 
-          if (roles.length === 0) {
-            const empty = win.document.createElement("div");
-            empty.textContent = "[No roles found]";
-            empty.className = "submenu-item";
-            roleSubmenu.appendChild(empty);
-          } else {
-            roles.forEach(role => {
+              const roles = getRolesForTheatre(theatre);
+
+              const sortedRoles = sortRoles(roles);
+
+              sortedRoles.forEach(role => {
+                const roleDiv = win.document.createElement("div");
+                roleDiv.className = "submenu-item";
+                roleDiv.textContent = role;
+
+                roleDiv.addEventListener("click", () => {
+                  const p = parsedRosterData[selectedIndex];
+                  win.opener.postMessage({
+                    type: "allocateStaffToTheatre",
+                    person: p,
+                    theatre,
+                    role
+                  }, "*");
+
+                  win.document.querySelectorAll(".roster-row").forEach(r => r.classList.remove("highlighted"));
+                  hideContextMenu();
+                });
+
+                roleMenu.appendChild(roleDiv);
+              });
+
+              theatreDiv.appendChild(roleMenu);
+            });
+
+            levelMenu.appendChild(theatreDiv);
+          });
+        } else if (items === "roles") {
+          floorDiv.addEventListener("mouseenter", () => {
+            if (floorDiv.querySelector(".submenu")) return;
+
+            const roleMenu = win.document.createElement("div");
+            roleMenu.className = "submenu";
+
+            const roles = getRolesForTheatre(floor);
+
+            const sortedRoles = sortRoles(roles);
+
+            sortedRoles.forEach(role => {
               const roleDiv = win.document.createElement("div");
               roleDiv.className = "submenu-item";
               roleDiv.textContent = role;
@@ -2726,53 +2959,51 @@ window.addEventListener("message", (e) => {
                 win.opener.postMessage({
                   type: "allocateStaffToTheatre",
                   person: p,
-                  theatre,
+                  theatre: floor,
                   role
                 }, "*");
 
-                // Clear selection highlight
                 win.document.querySelectorAll(".roster-row").forEach(r => r.classList.remove("highlighted"));
                 hideContextMenu();
               });
 
-              roleSubmenu.appendChild(roleDiv);
+              roleMenu.appendChild(roleDiv);
             });
-          }
 
-          theatreDiv.appendChild(roleSubmenu);
-        });
+            floorDiv.appendChild(roleMenu);
+          });
+        }
 
-        submenu.appendChild(theatreDiv);
+        if (Array.isArray(items)) {
+          floorDiv.appendChild(levelMenu);
+        }
+
+        floorMenu.appendChild(floorDiv);
       });
 
-      div.appendChild(submenu);
+      div.appendChild(floorMenu);
+
     }
 
     if (action === "Unallocate") {
-  div.addEventListener("click", () => {
-    const p = parsedRosterData[selectedIndex];
+      div.addEventListener("click", () => {
+        const p = parsedRosterData[selectedIndex];
+        if (!p.designation) return;
 
-    const oldTheatre = p.designation; // ✅ Save before clearing
+        const oldTheatre = p.designation;
+        p.designation = "";
+        renderRoster();
 
-    // ✅ Clear local designation
-    p.designation = "";
+        win.opener.postMessage({
+          type: "unallocateStaffFromTheatre",
+          name: p.name,
+          theatre: oldTheatre
+        }, "*");
 
-    // ✅ Re-render the popup view
-    renderRoster();
-
-    // ✅ Notify the main window to unallocate this person from that theatre
-    win.opener.postMessage({
-      type: "unallocateStaffFromTheatre",
-      name: p.name,
-      theatre: oldTheatre
-    }, "*");
-
-    // ✅ Deselect and close context menu
-    win.document.querySelectorAll(".roster-row").forEach(r => r.classList.remove("highlighted"));
-    hideContextMenu();
-  });
-}
-
+        win.document.querySelectorAll(".roster-row").forEach(r => r.classList.remove("highlighted"));
+        hideContextMenu();
+      });
+    }
 
     contextMenu.appendChild(div);
   });
@@ -2781,6 +3012,7 @@ window.addEventListener("message", (e) => {
   contextMenu.style.top = `${y}px`;
   contextMenu.style.left = `${x}px`;
 }
+
 
 
 
@@ -2812,7 +3044,7 @@ function getRolesForTheatre(theatre) {
   if (action === "Unallocate") {
     if (!p.designation) return;
 
-    // ✅ Tell main window to unallocate this person
+    // ✅ Tell main window to unassign this person
     win.opener.postMessage({
       type: "unallocateStaffFromTheatre",
       name: p.name,
@@ -2833,34 +3065,110 @@ function getRolesForTheatre(theatre) {
     renderRoster();
   }, 100);
 }
+function sortRoles(roles) {
+  const group = (base) => {
+    const exact = roles.filter(r => r === base);
+    const numbered = roles
+      .filter(r => r.startsWith(base + " ") && !isNaN(r.split(" ").pop()))
+      .sort((a, b) => parseInt(a.split(" ").pop()) - parseInt(b.split(" ").pop()));
+    return [...exact, ...numbered];
+  };
+
+  const others = roles.filter(r =>
+    !r.startsWith("Scrub N/P") &&
+    !r.startsWith("Anaes N/P") &&
+    !r.startsWith("HCA")
+  ).sort();
+
+  return [
+    ...group("Scrub N/P"),
+    ...group("Anaes N/P"),
+    ...group("HCA"),
+    ...others
+  ];
+}
 
 function allocateStaff(index) {
   const person = parsedRosterData[index];
   alert(`Allocate ${person.name} as ${person.role} to a Theatre block`);
 }
-window.addEventListener("message", (e) => {
-  if (e.data?.type === "unallocateStaffFromTheatre") {
-    const { name, theatre } = e.data;
-    const block = document.querySelector(`.theatre-block[data-theatre="${theatre}"]`);
-    if (block) {
-      const slots = block.querySelectorAll("[data-role]");
-      for (const slot of slots) {
-        if (slot.textContent.includes(name)) {
-          const roleLabel = slot.getAttribute("data-role-label") || slot.getAttribute("data-role");
-          slot.textContent = roleLabel;
-          slot.setAttribute("data-role", roleLabel);
-          slot.setAttribute("data-role-label", roleLabel);
-          slot.removeAttribute("data-name");
-          slot.removeAttribute("data-shift");
-          slot.setAttribute("data-allocated", "false");
-          slot.classList.remove("allocated", "highlight", "staff-name");
-          slot.classList.add("role-slot");
-          break;
-        }
-      }
-    }
-  }
-});
+
 </script>
-</body>
+<script>
+function saveAllocationsToJSON() {
+  const assignments = [];
+
+  document.querySelectorAll(".staff-entry").forEach(entry => {
+    const role = entry.dataset.role;
+    const name = entry.dataset.name;
+    const theatre = entry.closest("[data-theatre]")?.dataset.theatre;
+
+    if (name && role && theatre) {
+      assignments.push({ name, role, theatre });
+    }
+  });
+
+  const blob = new Blob([JSON.stringify(assignments, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "allocation_snapshot.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+</script>
+<script>
+function saveCurrentViewWithState() {
+  // Clone the full document body
+  const clonedBody = document.body.cloneNode(true);
+
+  // Remove elements you don’t want in the saved version
+  clonedBody.querySelectorAll("script, input[type='file']").forEach(el => el.remove());
+
+
+  // Preserve selected values in dropdowns
+  clonedBody.querySelectorAll("select").forEach(select => {
+    const selected = select.selectedIndex;
+    Array.from(select.options).forEach((opt, i) => {
+      if (i === selected) opt.setAttribute("selected", "selected");
+      else opt.removeAttribute("selected");
+    });
+  });
+
+  // Inline any dynamic changes (e.g. current input values)
+  clonedBody.querySelectorAll("input[type='date'], input[type='text']").forEach(input => {
+    input.setAttribute("value", input.value);
+  });
+
+  // Extract all <style> tags (inline styles already preserved)
+  const styles = Array.from(document.querySelectorAll("style"))
+    .map(style => style.innerHTML)
+    .join("\n");
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>RLH Theatre Allocation Snapshot</title>
+      <style>${styles}</style>
+    </head>
+    <body>${clonedBody.innerHTML}</body>
+    </html>
+  `;
+
+  const today = new Date().toISOString().split("T")[0];
+  const filename = `RLH_Theatre_Allocation_${today}.html`;
+
+  const blob = new Blob([html], { type: "text/html" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+</script>
+/body>
 </html>
